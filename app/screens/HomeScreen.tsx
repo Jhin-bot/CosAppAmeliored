@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, Image, RefreshControl } from 'react-native';
-import { Card, Text, ActivityIndicator, useTheme } from 'react-native-paper';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { Card, Text, ActivityIndicator } from 'react-native-paper';
+import { useTheme as usePaperTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -64,12 +65,51 @@ const PRODUCTS: Product[] = [
   },
 ];
 
+interface ProductCardProps {
+  product: Product;
+  onPress: () => void;
+}
+
+const ProductCard = React.memo(({ product, onPress }: ProductCardProps) => {
+  const theme = usePaperTheme();
+  const colors = theme.colors;
+
+  return (
+    <Card
+      style={[styles.card, { backgroundColor: colors.surface }]}
+      onPress={onPress}
+      mode="elevated"
+    >
+      <Card.Cover
+        source={{ uri: product.image }}
+        style={styles.cardImage}
+        resizeMode="cover"
+      />
+      <Card.Content style={styles.cardContent}>
+        <Text variant="titleMedium" style={[styles.productName, { color: colors.onSurface }]}>
+          {product.name}
+        </Text>
+        <Text
+          variant="bodyMedium"
+          style={[styles.productDescription, { color: colors.onSurfaceVariant }]}
+          numberOfLines={2}
+        >
+          {product.description}
+        </Text>
+        <Text variant="titleSmall" style={[styles.productPrice, { color: colors.primary }]}>
+          ${product.price.toFixed(2)}
+        </Text>
+      </Card.Content>
+    </Card>
+  );
+});
+
 export default function HomeScreen() {
-  const navigation = useNavigation<HomeScreenNavigationProp>();
-  const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
+  const paperTheme = usePaperTheme();
+  const navigation = useNavigation<HomeScreenNavigationProp>();
 
   // Simulate loading products from an API
   const loadProducts = useCallback(async () => {
@@ -97,68 +137,49 @@ export default function HomeScreen() {
     loadProducts();
   }, [loadProducts]);
 
-  // Render loading indicator
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
   // Render product item
-  const renderProductItem = ({ item }: { item: Product }) => (
-    <Card
-      style={styles.card}
-      onPress={() => navigation.navigate('ProductDetails', { productId: item.id })}
-      accessibilityLabel={item.name}
-      accessibilityHint={`View details for ${item.name}`}
-    >
-      <Image 
-        source={{ uri: item.image }} 
-        style={styles.productImage}
-        resizeMode="cover"
-        accessibilityIgnoresInvertColors
+  const renderProductItem = useCallback(({ item }: { item: Product }) => (
+    <View style={styles.productItemContainer}>
+      <ProductCard 
+        product={item}
+        onPress={() => navigation.navigate('ProductDetails', { productId: item.id })}
       />
-      <Card.Content>
-        <Text 
-          variant="titleMedium" 
-          style={styles.title} 
-          numberOfLines={1} 
-          ellipsizeMode="tail"
-        >
-          {item.name}
-        </Text>
-        <Text variant="bodyLarge" style={styles.price}>
-          ${item.price.toFixed(2)}
-        </Text>
-      </Card.Content>
-    </Card>
-  );
+    </View>
+  ), [navigation]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: paperTheme.colors.background }]}>
       <FlatList
         data={products}
         renderItem={renderProductItem}
         keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
+            colors={[paperTheme.colors.primary]}
+            tintColor={paperTheme.colors.primary}
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text variant="bodyLarge">No products available</Text>
-          </View>
+          !loading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={{ color: paperTheme.colors.onSurface }}>No products available</Text>
+            </View>
+          ) : null
+        }
+        ListHeaderComponent={
+          <Text style={[styles.sectionTitle, { color: paperTheme.colors.onBackground, marginBottom: 16 }]}>
+            Featured Products
+          </Text>
         }
       />
+      {loading && (
+        <View style={[styles.loadingContainer, { backgroundColor: paperTheme.colors.background + 'E6' }]}>
+          <ActivityIndicator animating={true} size="large" color={paperTheme.colors.primary} />
+        </View>
+      )}
     </View>
   );
 }
@@ -167,43 +188,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  listContent: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 8,
+  },
+  card: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
+  },
+  cardImage: {
+    height: 200,
+  },
+  cardContent: {
+    padding: 12,
+  },
+  productName: {
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  productDescription: {
+    marginTop: 6,
+    opacity: 0.8,
+    lineHeight: 20,
+  },
+  productPrice: {
+    marginTop: 8,
+    fontWeight: 'bold',
+  },
   loadingContainer: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 32,
   },
-  listContent: {
-    padding: 8,
-  },
-  columnWrapper: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  card: {
+  productItemContainer: {
     flex: 1,
-    margin: 8,
-    maxWidth: '47%',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  productImage: {
-    width: '100%',
-    height: 150,
-    backgroundColor: '#f0f0f0',
-  },
-  title: {
-    marginTop: 8,
-    fontWeight: '600',
-  },
-  price: {
-    color: '#f4511e',
-    fontWeight: 'bold',
-    marginTop: 4,
   },
 });
